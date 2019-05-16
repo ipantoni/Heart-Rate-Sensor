@@ -1,0 +1,102 @@
+#include <Adafruit_LiquidCrystal.h>
+#include <CircularBuffer.h>
+#include <MAX30100.h>
+#include <MAX30100_BeatDetector.h>
+#include <MAX30100_PulseOximeter.h>
+#include <MAX30100_SpO2Calculator.h>
+#include <Blynk.h>
+#include <Wire.h>
+#include "MAX30100_PulseOximeter.h"
+#define BLYNK_PRINT Serial
+#include <BlynkSimpleEsp8266.h>
+#define REPORTING_PERIOD_MS 1000
+#define L 14
+#define B 12
+
+BlynkTimer timer;
+String bpm,spO2;
+//LiquidCrystal_I2C lcd(0x27,16,2);
+char auth[] = "e1753a72ddd34be48edc8e749d6c8f33" ;
+char ssid[] = "AndroidAP";
+char pass[] = "campursaru";
+// PulseOximeter is the higher level interface to the sensor
+// it offers:
+// * beat detection reporting
+// * heart rate calculation
+// * SpO2 (oxidation level) calculation
+// * pin connection 1(SDA) and 2(SCL)
+PulseOximeter pox;
+// D1 -> SDA
+// D2 -> SCL
+
+ 
+uint32_t tsLastReport = 0;
+volatile boolean heartBeatDetected = false;
+ 
+
+void onBeatDetected(){
+heartBeatDetected = true;
+//Serial.println("Beat!");
+}
+
+void setup(){
+Serial.begin(115200);
+Blynk.begin(auth, ssid, pass);
+pinMode(L, OUTPUT);
+pinMode(B, OUTPUT);
+//Serial.print("Initializing pulse oximeter..");
+ timer.setInterval(500L, myTimerEvent);
+
+
+pox.begin();
+ 
+
+pox.setIRLedCurrent(MAX30100_LED_CURR_7_6MA);
+ 
+
+
+pox.setOnBeatDetectedCallback(onBeatDetected);
+
+
+}
+ 
+void loop(){
+
+pox.update();
+Blynk.run();
+timer.run();
+    
+
+}
+
+void myTimerEvent()
+{
+if (millis() - tsLastReport > REPORTING_PERIOD_MS) {
+float bpm = pox.getHeartRate();
+float spO2 = pox.getSpO2();
+
+   if(bpm > 0){
+    digitalWrite(L, HIGH);
+    digitalWrite(B, HIGH);
+ 
+
+  }
+
+  else {
+    digitalWrite(L, LOW);
+    digitalWrite(B, LOW);
+  }
+
+Serial.print("Heart rate:");
+Serial.print(bpm);
+Serial.print("bpm / SpO2:");
+Serial.print(spO2);
+Serial.println("%");
+ 
+tsLastReport = millis();
+Blynk.virtualWrite(V1, bpm);
+Blynk.virtualWrite(V2, spO2);
+
+
+}
+}
